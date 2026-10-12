@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -52,6 +53,64 @@ def first_attack(audio: np.ndarray, start: float, end: float) -> float:
 
 
 class AlignStemTest(unittest.TestCase):
+    def test_repeated_onsets_preserve_the_consistent_offset_direction(self) -> None:
+        spec = importlib.util.spec_from_file_location("mad_align_test_module", SCRIPT)
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        guide = [{"time_seconds": i / 10, "score": 1.0} for i in range(5)]
+        stem = [{"time_seconds": i / 10 + 0.06, "score": 1.0} for i in range(5)]
+        pairs = module.matching_candidates(guide, stem, 80)
+        self.assertEqual(len(pairs), 5)
+        self.assertTrue(all(pair["stem_minus_guide_ms"] == 60 for pair in pairs))
+
+    def test_gradual_drift_keeps_all_ordered_onset_candidates(self) -> None:
+        spec = importlib.util.spec_from_file_location("mad_align_drift_test_module", SCRIPT)
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        guide = [{"time_seconds": float(i), "score": 1.0} for i in range(1, 6)]
+        stem = [{"time_seconds": float(i) + drift, "score": 1.0}
+                for i, drift in zip(range(1, 6), (0, 0.02, 0.04, 0.06, 0.079))]
+        pairs = module.matching_candidates(guide, stem, 80)
+        self.assertEqual(len(pairs), 5)
+        self.assertEqual([pair["stem_minus_guide_ms"] for pair in pairs],
+                         [0, 20, 40, 60, 79])
+
+    def test_partial_stem_can_be_placed_and_padded_without_moving_other_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            raw = np.zeros(round(0.5 * SR), dtype=np.float32)
+            pulse(raw, 0.25)
+            source = root / "solo.wav"
+            with wave.open(str(source), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(SR)
+                wav.writeframes(np.round(raw * 32767).astype("<i2").tobytes())
+            config_path = root / "partial.json"
+            config_path.write_text(json.dumps({
+                "duration_seconds": 1.5,
+                "output_dir": "aligned",
+                "stems": [{
+                    "id": "solo", "input": "solo.wav", "trim_seconds": 0,
+                    "timeline_start_seconds": 0.7, "pad_to_duration": True,
+                    "edits": [{"fade_in": [0.8, 0.84],
+                               "fade_out": [0.98, 1.02], "shift_ms": 20}],
+                }],
+            }), encoding="utf-8")
+            result = command("render", "--config", str(config_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            aligned = decode(root / "aligned/solo_aligned_24bit.flac")
+            self.assertEqual(len(aligned), round(1.5 * SR))
+            self.assertEqual(float(np.max(np.abs(aligned[:round(0.7 * SR)]))), 0)
+            self.assertEqual(float(np.max(np.abs(aligned[round(1.2 * SR):]))), 0)
+            self.assertAlmostEqual(first_attack(aligned, 0.88, 0.98), 0.93, delta=1 / SR)
+            audit = json.loads((root / "aligned/alignment_audit.json").read_text())
+            self.assertEqual(audit["stems"][0]["timeline_start_samples"], round(0.7 * SR))
+
     def test_signed_shifts_keep_outer_anchors_and_format(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

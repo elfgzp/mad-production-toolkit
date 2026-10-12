@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -72,6 +73,16 @@ def stream_duration(stream: dict) -> Fraction:
     if value in (None, "N/A"):
         raise ValueError("stream duration is unavailable")
     return Fraction(str(value))
+
+
+def stream_start(stream: dict) -> float:
+    value = stream.get("start_time")
+    if value in (None, "N/A"):
+        raise ValueError("stream start time is unavailable")
+    start = float(value)
+    if not math.isfinite(start):
+        raise ValueError("stream start time is invalid")
+    return start
 
 
 def frame_count(stream: dict) -> int:
@@ -157,6 +168,16 @@ def qa(args: argparse.Namespace) -> None:
         if abs(audio_duration - video_duration) > args.av_tolerance:
             raise ValueError(f"audio/video stream durations differ by "
                              f"{abs(audio_duration - video_duration):.6f} s")
+        video_start = stream_start(video)
+        audio_start = stream_start(audio)
+        if abs(audio_start - video_start) > args.av_tolerance:
+            raise ValueError(f"audio/video stream start times differ by "
+                             f"{abs(audio_start - video_start):.6f} s")
+        video_end = video_start + video_duration
+        audio_end = audio_start + audio_duration
+        if abs(audio_end - video_end) > args.av_tolerance:
+            raise ValueError(f"audio/video stream end times differ by "
+                             f"{abs(audio_end - video_end):.6f} s")
     decode = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-xerror", "-i", str(path),
               "-map", "0:v:0"]
     if audio:
@@ -171,6 +192,10 @@ def qa(args: argparse.Namespace) -> None:
                   "height": video.get("height"), "frame_rate": video.get("avg_frame_rate")},
     }
     if audio:
+        report["video_start_seconds"] = video_start
+        report["audio_start_seconds"] = audio_start
+        report["video_end_seconds"] = video_end
+        report["audio_end_seconds"] = audio_end
         report["audio_duration_seconds"] = audio_duration
         report["audio_video_duration_gap_seconds"] = abs(audio_duration - video_duration)
         report["audio"] = {"codec": audio.get("codec_name"),

@@ -81,6 +81,8 @@ def probe(path: Path, media_type: str) -> dict:
 
 def atomic_copy(source: Path, destination: Path, expected_hash: str) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink():
+        raise ValueError(f"asset destination must not be a symbolic link: {destination.name}")
     if destination.exists():
         if sha256(destination) != expected_hash:
             raise FileExistsError(f"asset ID already exists with different bytes: {destination.name}")
@@ -146,6 +148,12 @@ def main() -> None:
         validated.append({**item, "origin": origin, "_source": source})
 
     project.mkdir(parents=True, exist_ok=True)
+    manifest_path = project / "assets-manifest.json"
+    if manifest_path.is_symlink():
+        raise ValueError("project asset manifest must not be a symbolic link")
+    assets_dir = project / "assets"
+    if assets_dir.is_symlink() or not assets_dir.resolve().is_relative_to(project):
+        raise ValueError("project assets directory must stay inside the project without links")
     records = []
     for item in sorted(validated, key=lambda value: value["id"]):
         source = item["_source"]
@@ -165,8 +173,8 @@ def main() -> None:
             "media": media,
         })
     manifest = {"schema_version": 1, "assets": records}
-    atomic_json(project / "assets-manifest.json", manifest)
-    print(f"ingested {len(records)} assets -> {project / 'assets-manifest.json'}")
+    atomic_json(manifest_path, manifest)
+    print(f"ingested {len(records)} assets -> {manifest_path}")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ A reusable Codex skill suite for music video and cover MAD production. It turns 
 | Skill | Use it for |
 | --- | --- |
 | `mad-source-assets` | Record source, rights status, metadata, hashes, and local project copies. |
-| `mad-plan-shots` | Turn a beat-aware shot plan into an exact-frame animation panel and edit manifest. |
+| `mad-plan-shots` | Plan beat-aware animation or performer-camera cuts into an exact-frame panel and edit manifest. |
 | `mad-align-stems` | Compare performance phrases to guide stems and apply reviewed local timing edits. |
 | `mad-time-lyrics` | Check cue coverage, export subtitles, and render configurable bilingual lyric motion. |
 | `mad-mix-audio` | Mix aligned stems with automation, EQ, stereo placement, bass compression, and wet layers. |
@@ -24,18 +24,26 @@ Read the relevant `SKILL.md` in [`plugins/mad-production-toolkit/skills`](plugin
 
 ```bash
 codex plugin marketplace add elfgzp/mad-production-toolkit
-codex plugin add mad-production-toolkit@mad-production-toolkit
+PLUGIN_ROOT="$(codex plugin add mad-production-toolkit@mad-production-toolkit --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["installedPath"])')"
+python3 -m pip install -r "$PLUGIN_ROOT/requirements.txt"
 ```
 
-The GitHub repository is a Codex marketplace source. Listing in OpenAI's public Plugins Directory is a separate submission and review process.
+`PLUGIN_ROOT` comes from the install result's `installedPath` and points to the cached plugin containing the requirements file and skill scripts. Install dependencies with the same `python3` interpreter used to run the skill scripts. If you use a virtual environment, run the scripts with that environment's Python. For a direct repository clone, install dependencies from the plugin directory instead:
+
+```bash
+git clone https://github.com/elfgzp/mad-production-toolkit.git
+python3 -m pip install -r mad-production-toolkit/plugins/mad-production-toolkit/requirements.txt
+```
+
+The GitHub repository is a Codex marketplace source. Start a new Codex conversation after installation to use the skills. Listing in OpenAI's public Plugins Directory is a separate submission and review process.
 
 ## Requirements
 
 - Python 3.10 or newer; `numpy` and `Pillow` for the audio analysis and text rendering tools.
-- FFmpeg and FFprobe available on `PATH`, with H.264, AAC, FLAC, and ProRes encoders.
+- FFmpeg and FFprobe available on `PATH`, with the `libx264`, `prores_ks`, AAC, and FLAC encoders.
 - Local inputs that you are permitted to edit, display, and distribute for the intended use. This repository contains no project footage, recordings, lyrics, translations, logos, fonts, NAM models, or impulse responses.
 
-Install Python dependencies with `python3 -m pip install -r requirements.txt`. See each skill for its CLI and config format. All scripts operate on explicit local paths and do not call a hosted media service.
+Run `ffmpeg -hide_banner -encoders | grep -E 'libx264|prores_ks|[[:space:]]aac[[:space:]]|[[:space:]]flac[[:space:]]'` and confirm that all four encoders appear. See each skill for its CLI and config format. All scripts operate on explicit local paths and do not call a hosted media service.
 
 ## Development and validation
 
@@ -43,7 +51,7 @@ Install Python dependencies with `python3 -m pip install -r requirements.txt`. S
 python3 scripts/validate_all.py
 ```
 
-Tests generate short synthetic media in temporary directories. The validation script checks every skill and both plugin manifests; it does not need project footage. For publication, also review the staged Git files for private paths, secret material, and third-party media.
+Run validation from the repository root. Tests generate short synthetic media in temporary directories and need no project footage. The script checks the basic structure of all seven skills, names, versions, and icon paths in both manifests, and local documentation links, then runs skill unit tests and a synthetic end-to-end test. It does not perform full JSON Schema validation of the manifests. For publication, also review the staged Git files for private paths, secret material, and third-party media.
 
 ## Licensing and data
 

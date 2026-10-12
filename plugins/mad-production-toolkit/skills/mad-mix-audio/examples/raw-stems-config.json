@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "duration_sec": 120,
+  "sample_rate": 48000,
+  "output": "../exports/raw-stems-mix.flac",
+  "stems": [
+    {
+      "name": "raw rhythm take",
+      "path": "../media/rhythm.wav",
+      "bus": "guitars",
+      "source_start_sec": 0.2,
+      "timeline_start_sec": 0,
+      "placement": "mono",
+      "pan": -0.4,
+      "gain_db": -4
+    },
+    {
+      "name": "raw solo take",
+      "path": "../media/solo.wav",
+      "bus": "guitars",
+      "source_start_sec": 0.1,
+      "timeline_start_sec": 80,
+      "placement": "mono",
+      "pan": 0.4,
+      "gain_db": -4
+    }
+  ],
+  "master": {
+    "gain_db": -6,
+    "limiter": {"limit_db": -1}
+  }
+}

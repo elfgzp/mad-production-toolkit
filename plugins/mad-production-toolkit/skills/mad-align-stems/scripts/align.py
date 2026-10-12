@@ -46,6 +46,9 @@ class Stem:
     input_path: Path
     trim_seconds: float
     trim_samples: int
+    timeline_start_seconds: float
+    timeline_start_samples: int
+    pad_to_duration: bool
     edits: tuple[Edit, ...]
 
 
@@ -118,7 +121,8 @@ def load_config(path: Path) -> Config:
         label = f"stems[{index}]"
         if not isinstance(entry, dict):
             raise ValueError(f"{label} must be an object")
-        unknown = set(entry) - {"id", "input", "trim_seconds", "edits"}
+        unknown = set(entry) - {"id", "input", "trim_seconds", "timeline_start_seconds",
+                                "pad_to_duration", "edits"}
         if unknown:
             raise ValueError(f"{label} has unknown fields: {sorted(unknown)}")
         stem_id = entry.get("id")
@@ -134,6 +138,17 @@ def load_config(path: Path) -> Config:
         if not input_path.is_file():
             raise ValueError(f"{label}.input does not exist: {input_path}")
         trim = finite_number(entry.get("trim_seconds"), f"{label}.trim_seconds", minimum=0)
+        timeline_start = finite_number(
+            entry.get("timeline_start_seconds", 0), f"{label}.timeline_start_seconds", minimum=0
+        )
+        timeline_start_samples = seconds_to_samples(timeline_start)
+        if timeline_start_samples >= samples:
+            raise ValueError(f"{label}.timeline_start_seconds must precede duration")
+        pad_to_duration = entry.get("pad_to_duration", False)
+        if not isinstance(pad_to_duration, bool):
+            raise ValueError(f"{label}.pad_to_duration must be a boolean")
+        if timeline_start_samples and not pad_to_duration:
+            raise ValueError(f"{label}: timeline placement requires pad_to_duration=true")
         edit_entries = entry.get("edits", [])
         if not isinstance(edit_entries, list):
             raise ValueError(f"{label}.edits must be an array")
@@ -164,7 +179,8 @@ def load_config(path: Path) -> Config:
             prior_end = d
             edits.append(Edit(fade_in, fade_out, shift, (a, b, c, d), shift_samples))
         stems.append(
-            Stem(stem_id, input_label, input_path, trim, seconds_to_samples(trim), tuple(edits))
+            Stem(stem_id, input_label, input_path, trim, seconds_to_samples(trim),
+                 timeline_start, timeline_start_samples, pad_to_duration, tuple(edits))
         )
     return Config(path, output_dir, duration, samples, tuple(stems))
 
@@ -231,17 +247,31 @@ def unedited_intervals(stem: Stem, duration_samples: int) -> list[tuple[int, int
     return intervals
 
 
-def apply_edits(raw: np.ndarray, stem: Stem, duration_samples: int) -> tuple[np.ndarray, float]:
+def placed_source(raw: np.ndarray, stem: Stem, duration_samples: int) -> tuple[np.ndarray, int]:
     base = stem.trim_samples
-    end = base + duration_samples
-    if end > raw.shape[0]:
+    if base >= raw.shape[0]:
+        raise ValueError(f"{stem.stem_id}: trim starts at or after source end")
+    start = stem.timeline_start_samples
+    available = raw.shape[0] - base
+    required = duration_samples - start
+    if not stem.pad_to_duration and available < required:
         raise ValueError(f"{stem.stem_id}: source is shorter than trim + duration")
-    dry = raw[base:end]
+    copy_samples = min(available, required)
+    dry = np.zeros((duration_samples, raw.shape[1]), dtype=raw.dtype)
+    dry[start:start + copy_samples] = raw[base:base + copy_samples]
+    return dry, start + copy_samples
+
+
+def apply_edits(raw: np.ndarray, stem: Stem, duration_samples: int) -> tuple[np.ndarray, float, int]:
+    dry, active_end = placed_source(raw, stem, duration_samples)
+    base = stem.trim_samples
     output = dry.copy()
     for edit in stem.edits:
         a, b, c, d = edit.bounds
-        shifted_start = base + a + edit.shift_samples
-        shifted_end = base + d + edit.shift_samples
+        if a < stem.timeline_start_samples or d > active_end:
+            raise ValueError(f"{stem.stem_id}: edit window extends outside placed source")
+        shifted_start = base + a - stem.timeline_start_samples + edit.shift_samples
+        shifted_end = base + d - stem.timeline_start_samples + edit.shift_samples
         if shifted_start < 0 or shifted_end > raw.shape[0]:
             raise ValueError(
                 f"{stem.stem_id}: shifted source read exceeds input at {a / SAMPLE_RATE:.3f}s"
@@ -257,7 +287,7 @@ def apply_edits(raw: np.ndarray, stem: Stem, duration_samples: int) -> tuple[np.
         max_delta = max(max_delta, float(np.max(np.abs(output[start:stop] - dry[start:stop]))))
     if max_delta != 0.0:
         raise AssertionError(f"{stem.stem_id}: unedited anchor samples changed")
-    return output, max_delta
+    return output, max_delta, active_end
 
 
 def encode_flac(audio: np.ndarray, target: Path) -> None:
@@ -314,7 +344,9 @@ def render(config: Config, *, overwrite: bool = False) -> list[Path]:
         for stem, target in zip(config.stems, targets):
             channels = probe_channels(stem.input_path)
             raw = decode(stem.input_path, channels)
-            aligned, anchor_max_delta = apply_edits(raw, stem, config.duration_samples)
+            aligned, anchor_max_delta, active_end = apply_edits(
+                raw, stem, config.duration_samples
+            )
             temp_flac = temp_dir / target.name
             encode_flac(aligned, temp_flac)
             record = {
@@ -323,6 +355,10 @@ def render(config: Config, *, overwrite: bool = False) -> list[Path]:
                 "input_sha256": sha256(stem.input_path),
                 "source_trim_seconds": stem.trim_seconds,
                 "source_trim_samples": stem.trim_samples,
+                "timeline_start_seconds": stem.timeline_start_seconds,
+                "timeline_start_samples": stem.timeline_start_samples,
+                "pad_to_duration": stem.pad_to_duration,
+                "source_active_end_samples": active_end,
                 "channels": channels,
                 "output": target.name,
                 "output_sha256": sha256(temp_flac),
@@ -408,34 +444,49 @@ def matching_candidates(
     stem: list[dict[str, float]],
     pair_window_ms: float,
 ) -> list[dict[str, float]]:
-    possibilities: list[tuple[float, float, int, int]] = []
-    for gi, g in enumerate(guide):
-        for si, s in enumerate(stem):
-            offset_ms = (s["time_seconds"] - g["time_seconds"]) * 1000
-            if abs(offset_ms) <= pair_window_ms:
-                possibilities.append(
-                    (abs(offset_ms), -(g["score"] + s["score"]), gi, si)
-                )
-    possibilities.sort()
-    used_guide: set[int] = set()
-    used_stem: set[int] = set()
-    matches: list[dict[str, float]] = []
-    for _, _, gi, si in possibilities:
-        if gi in used_guide or si in used_stem:
-            continue
-        used_guide.add(gi)
-        used_stem.add(si)
-        matches.append(
-            {
+    if not guide or not stem:
+        return []
+    # Maximize one-to-one matches in time order before minimizing their total
+    # offset. Nearest-peak greed aliases repeated notes; a single fixed-offset
+    # hypothesis loses real matches when a phrase gradually drifts.
+    guide_count, stem_count = len(guide), len(stem)
+    scores = [[(0, 0.0) for _ in range(stem_count + 1)]
+              for _ in range(guide_count + 1)]
+    choices = [[0 for _ in range(stem_count)] for _ in range(guide_count)]
+    for gi in range(guide_count - 1, -1, -1):
+        for si in range(stem_count - 1, -1, -1):
+            best = scores[gi + 1][si]
+            choice = 1  # Skip this guide candidate.
+            if scores[gi][si + 1] > best:
+                best = scores[gi][si + 1]
+                choice = 2  # Skip this stem candidate.
+            offset = (stem[si]["time_seconds"] - guide[gi]["time_seconds"]) * 1000
+            if abs(offset) <= pair_window_ms:
+                following = scores[gi + 1][si + 1]
+                matched = (following[0] + 1, following[1] - abs(offset))
+                if matched >= best:
+                    best = matched
+                    choice = 3
+            scores[gi][si] = best
+            choices[gi][si] = choice
+    pairs: list[dict[str, float]] = []
+    gi = si = 0
+    while gi < guide_count and si < stem_count:
+        choice = choices[gi][si]
+        if choice == 3:
+            offset = (stem[si]["time_seconds"] - guide[gi]["time_seconds"]) * 1000
+            pairs.append({
                 "guide_seconds": guide[gi]["time_seconds"],
                 "stem_seconds": stem[si]["time_seconds"],
-                "stem_minus_guide_ms": round(
-                    (stem[si]["time_seconds"] - guide[gi]["time_seconds"]) * 1000, 2
-                ),
-            }
-        )
-    matches.sort(key=lambda match: match["guide_seconds"])
-    return matches
+                "stem_minus_guide_ms": round(offset, 2),
+            })
+            gi += 1
+            si += 1
+        elif choice == 1:
+            gi += 1
+        else:
+            si += 1
+    return pairs
 
 
 def timeline_slice(audio: np.ndarray, trim: float, start: float, end: float, label: str) -> np.ndarray:
@@ -474,9 +525,11 @@ def analyze(
     guide_audio = decode(guide_path, 1)
     stem_audio = decode(stem_path, 1)
     guide_segment = timeline_slice(guide_audio, guide_trim, start, end, "guide")
-    stem_segment = timeline_slice(
-        stem_audio, 0 if rendered else stem.trim_seconds, start, end, stem_id
-    )
+    if rendered:
+        stem_timeline = stem_audio
+    else:
+        stem_timeline, _ = placed_source(stem_audio, stem, config.duration_samples)
+    stem_segment = timeline_slice(stem_timeline, 0, start, end, stem_id)
     guide_events = onset_candidates(
         guide_segment, timeline_start=start, min_spacing_ms=min_spacing_ms
     )
@@ -506,6 +559,7 @@ def analyze(
         "timeline_window_seconds": [start, end],
         "guide_trim_seconds": guide_trim,
         "stem_trim_seconds": 0 if rendered else stem.trim_seconds,
+        "stem_timeline_start_seconds": stem.timeline_start_seconds,
         "guide_onsets": guide_events,
         "stem_onsets": stem_events,
         "candidate_pairs": pairs,

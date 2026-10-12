@@ -7,10 +7,13 @@ import argparse
 import bisect
 import json
 import math
+import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -345,31 +348,44 @@ def render(cues: list[Cue], duration: float, style: dict, output: Path, force: b
     starts = [cue.start for cue in cues]
     frames = round(duration * fps)
     output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists():
+        output_mode = stat.S_IMODE(output.stat().st_mode)
+    else:
+        current_umask = os.umask(0)
+        os.umask(current_umask)
+        output_mode = 0o666 & ~current_umask
+    with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".lyrics-", suffix=".mov",
+                                     delete=False) as tmp:
+        temporary = Path(tmp.name)
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-f", "rawvideo", "-pixel_format", "rgba", "-video_size", f"{width}x{height}",
         "-framerate", str(fps), "-i", "pipe:0",
         "-an", "-c:v", "prores_ks", "-profile:v", "4", "-pix_fmt", "yuva444p10le",
-        "-alpha_bits", "16", str(output),
+        "-alpha_bits", "16", str(temporary),
     ]
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        assert process.stdin is not None
-        for number in range(frames):
-            t = number / fps
-            index = bisect.bisect_right(starts, float(t)) - 1
-            active = artworks[index] if index >= 0 and t < cues[index].end else None
-            process.stdin.write(render_frame(active, float(t), style))
-        process.stdin.close()
-        assert process.stderr is not None
-        error = process.stderr.read().decode("utf-8", errors="replace")
-        if process.wait() != 0:
-            raise RuntimeError(error[-2000:])
-    except Exception:
-        process.kill()
-        process.wait()
-        output.unlink(missing_ok=True)
-        raise
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            assert process.stdin is not None
+            for number in range(frames):
+                t = number / fps
+                index = bisect.bisect_right(starts, float(t)) - 1
+                active = artworks[index] if index >= 0 and t < cues[index].end else None
+                process.stdin.write(render_frame(active, float(t), style))
+            process.stdin.close()
+            assert process.stderr is not None
+            error = process.stderr.read().decode("utf-8", errors="replace")
+            if process.wait() != 0:
+                raise RuntimeError(error[-2000:])
+        except Exception:
+            process.kill()
+            process.wait()
+            raise
+        os.chmod(temporary, output_mode)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
     print(f"{output}\t{frames} frames")
 
 

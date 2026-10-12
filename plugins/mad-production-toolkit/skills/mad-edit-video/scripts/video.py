@@ -7,10 +7,12 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from fractions import Fraction
 from pathlib import Path
 
@@ -54,6 +56,26 @@ def cache_key(config: Path, paths: list[Path]) -> dict:
                    for index, path in enumerate(paths)},
         "ffmpeg": version.stdout.splitlines()[0],
     }
+
+
+def atomic_render(command: list[str], output: Path, *, sidecar: Path | None = None,
+                  key: dict | None = None) -> None:
+    """Keep any previous render intact until FFmpeg has completed successfully."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{output.stem}-", dir=output.parent) as name:
+        temporary = Path(name) / output.name
+        run([*command[:-1], str(temporary)])
+        if not temporary.is_file() or temporary.stat().st_size == 0:
+            raise RuntimeError(f"FFmpeg produced no output: {temporary}")
+        if sidecar is not None:
+            if key is None:
+                raise ValueError("cache key is required with a sidecar")
+            metadata = {**key, "output_sha256": sha256(temporary)}
+            staged_sidecar = Path(name) / sidecar.name
+            staged_sidecar.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, output)
+        if sidecar is not None:
+            os.replace(staged_sidecar, sidecar)
 
 
 def finite(value: object, name: str, minimum: float = 0) -> float:
@@ -204,13 +226,19 @@ def render_base(config: Path, output: Path, force: bool) -> None:
         sources.append(path)
     key = cache_key(config, sources)
     sidecar = output.with_suffix(output.suffix + ".cache.json")
+    if output.resolve() in {path.resolve() for path in sources}:
+        raise ValueError("base output must differ from source videos")
     if output.exists():
-        if sidecar.is_file() and json.loads(sidecar.read_text(encoding="utf-8")) == key:
+        try:
+            prior = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.is_file() else {}
+        except (OSError, json.JSONDecodeError):
+            prior = {}
+        if (all(prior.get(field) == value for field, value in key.items())
+                and prior.get("output_sha256") == sha256(output)):
             print(f"cache hit: {output}")
             return
         if not force:
             raise FileExistsError(f"{output} exists with changed inputs; pass --force to rerender")
-    output.parent.mkdir(parents=True, exist_ok=True)
     command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     for path in sources:
         command += ["-i", str(path)]
@@ -219,8 +247,7 @@ def render_base(config: Path, output: Path, force: bool) -> None:
                 "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "18", "-pix_fmt", "yuv420p", "-r", str(fps),
                 "-frames:v", str(frames), "-movflags", "+faststart", str(output)]
-    run(command)
-    sidecar.write_text(json.dumps(key, indent=2) + "\n", encoding="utf-8")
+    atomic_render(command, output, sidecar=sidecar, key=key)
     print(f"{output}\t{frames} frames")
 
 
@@ -262,6 +289,8 @@ def composite(config: Path, output: Path, audio_override: Path | None, force: bo
     audio = audio_override or (resolve(config.parent, payload["audio"]) if payload.get("audio") else None)
     if audio and not audio.is_file():
         raise FileNotFoundError(audio)
+    if output.resolve() in {path.resolve() for path in [*sources, *([audio] if audio else [])]}:
+        raise ValueError("overlay output must differ from all inputs")
     command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     fps = base_info["avg_frame_rate"]
     for index, path in enumerate(sources):
@@ -289,8 +318,7 @@ def composite(config: Path, output: Path, audio_override: Path | None, force: bo
                 "-pix_fmt", "yuv420p", "-frames:v", str(base_info.get("nb_frames") or
                                                        round(base_info["duration_seconds"] * Fraction(base_info["avg_frame_rate"]))),
                 "-movflags", "+faststart", str(output)]
-    output.parent.mkdir(parents=True, exist_ok=True)
-    run(command)
+    atomic_render(command, output)
     print(output)
 
 
@@ -299,12 +327,13 @@ def remux(video: Path, audio: Path, output: Path, force: bool) -> None:
         raise FileExistsError(f"{output} exists; pass --force to replace")
     if not video.is_file() or not audio.is_file():
         raise FileNotFoundError("video and audio inputs must exist")
+    if output.resolve() in {video.resolve(), audio.resolve()}:
+        raise ValueError("remux output must differ from its inputs")
     length = probe(video)["duration_seconds"]
-    output.parent.mkdir(parents=True, exist_ok=True)
-    run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+    atomic_render(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
          "-i", str(video), "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0",
          "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "48000",
-         "-t", f"{length:.6f}", "-movflags", "+faststart", str(output)])
+         "-t", f"{length:.6f}", "-movflags", "+faststart", str(output)], output)
     print(output)
 
 

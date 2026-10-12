@@ -68,6 +68,27 @@ class VideoToolTest(unittest.TestCase):
             self.assertLess(blue_at(base, 0.8, 80, 45), 20)
             self.assertGreater(blue_at(base, 1.8, 80, 45), 30)
 
+            good_video = base.read_bytes()
+            cache = base.with_suffix(base.suffix + ".cache.json")
+            good_cache = cache.read_bytes()
+            base.write_bytes(b"corrupted cache artifact")
+            stale = subprocess.run([sys.executable, str(SCRIPT), "base", "--config",
+                                    str(config), "--output", str(base)],
+                                   capture_output=True, text=True)
+            self.assertNotEqual(stale.returncode, 0, "corrupted output must not be a cache hit")
+            invoke("base", "--config", str(config), "--output", str(base), "--force")
+            self.assertEqual(base.read_bytes(), good_video)
+            self.assertEqual(cache.read_bytes(), good_cache)
+            invalid = json.loads(config.read_text(encoding="utf-8"))
+            invalid["panels"][0]["crop"] = [400, 400, 0, 0]
+            config.write_text(json.dumps(invalid), encoding="utf-8")
+            failed = subprocess.run([sys.executable, str(SCRIPT), "base", "--config",
+                                     str(config), "--output", str(base), "--force"],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual(base.read_bytes(), good_video)
+            self.assertEqual(cache.read_bytes(), good_cache)
+
             badge = root / "badge.png"
             Image.new("RGBA", (16, 16), (255, 0, 255, 255)).save(badge)
             overlay_config = root / "overlay.json"
@@ -95,6 +116,19 @@ class VideoToolTest(unittest.TestCase):
             self.assertEqual(video_hash(layered), video_hash(remuxed))
             subprocess.run(["ffmpeg", "-v", "error", "-i", str(remuxed), "-f", "null", "-"],
                            check=True, capture_output=True)
+            invalid_audio = root / "invalid-audio.wav"
+            invalid_audio.write_bytes(b"not an audio stream")
+            for args, destination in (
+                (("overlay", "--config", str(overlay_config), "--audio", str(invalid_audio),
+                  "--output", str(layered), "--force"), layered),
+                (("remux", "--video", str(layered), "--audio", str(invalid_audio),
+                  "--output", str(remuxed), "--force"), remuxed),
+            ):
+                previous = destination.read_bytes()
+                failed = subprocess.run([sys.executable, str(SCRIPT), *args],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(failed.returncode, 0)
+                self.assertEqual(destination.read_bytes(), previous)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,78 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/ingest_assets.py"
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")
 class IngestAssetsTest(unittest.TestCase):
+    def test_rejects_existing_manifest_link(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tone.wav"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "sine=frequency=440:duration=0.1", str(source)],
+                           check=True, capture_output=True)
+            config = root / "assets.json"
+            config.write_text(json.dumps({"schema_version": 1, "assets": [{
+                "id": "tone", "path": "tone.wav", "media_type": "audio",
+                "origin": {"type": "label", "value": "test"},
+                "creator": "Test", "rights_status": "owned",
+            }]}), encoding="utf-8")
+            project = root / "project"
+            project.mkdir()
+            outside = root / "outside-manifest.json"
+            outside.write_text("keep this file", encoding="utf-8")
+            manifest = project / "assets-manifest.json"
+            manifest.symlink_to(outside)
+            result = subprocess.run([sys.executable, str(SCRIPT), "--config", str(config),
+                                     "--project", str(project)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(manifest.is_symlink())
+            self.assertEqual(outside.read_text(encoding="utf-8"), "keep this file")
+            self.assertFalse((project / "assets/tone.wav").exists())
+
+    def test_rejects_existing_asset_link_even_with_same_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tone.wav"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "sine=frequency=440:duration=0.1", str(source)],
+                           check=True, capture_output=True)
+            config = root / "assets.json"
+            config.write_text(json.dumps({"schema_version": 1, "assets": [{
+                "id": "tone", "path": "tone.wav", "media_type": "audio",
+                "origin": {"type": "label", "value": "test"},
+                "creator": "Test", "rights_status": "owned",
+            }]}), encoding="utf-8")
+            project = root / "project"
+            (project / "assets").mkdir(parents=True)
+            destination = project / "assets/tone.wav"
+            destination.symlink_to(source)
+            result = subprocess.run([sys.executable, str(SCRIPT), "--config", str(config),
+                                     "--project", str(project)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(destination.is_symlink())
+            self.assertFalse((project / "assets-manifest.json").exists())
+
+    def test_rejects_assets_directory_link_outside_project(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tone.wav"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                            "sine=frequency=440:duration=0.1", str(source)],
+                           check=True, capture_output=True)
+            config = root / "assets.json"
+            config.write_text(json.dumps({"schema_version": 1, "assets": [{
+                "id": "tone", "path": "tone.wav", "media_type": "audio",
+                "origin": {"type": "label", "value": "test"},
+                "creator": "Test", "rights_status": "owned",
+            }]}), encoding="utf-8")
+            project = root / "project"
+            outside = root / "outside"
+            project.mkdir()
+            outside.mkdir()
+            (project / "assets").symlink_to(outside, target_is_directory=True)
+            result = subprocess.run([sys.executable, str(SCRIPT), "--config", str(config),
+                                     "--project", str(project)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((outside / "tone.wav").exists())
+
     def test_portable_manifest_and_immutable_asset_id(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -21,6 +21,22 @@ def call(*args: str) -> subprocess.CompletedProcess[str]:
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")
 class DeliveryTest(unittest.TestCase):
+    def test_qa_rejects_audio_stream_start_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "offset.mp4"
+            subprocess.run([
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "color=c=black:s=64x36:r=30:d=1",
+                "-itsoffset", "0.5", "-f", "lavfi", "-i",
+                "sine=frequency=440:sample_rate=48000:duration=1",
+                "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264",
+                "-c:a", "aac", str(path),
+            ], check=True, capture_output=True)
+            result = call("qa", "--video", str(path))
+            self.assertNotEqual(result.returncode, 0,
+                                "matching stream durations cannot excuse an audio start offset")
+            self.assertIn("start", result.stderr)
+
     def test_outro_qa_bundle_and_zip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

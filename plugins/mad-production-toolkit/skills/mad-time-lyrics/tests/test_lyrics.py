@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -14,6 +16,31 @@ SCRIPT = ROOT / "scripts/lyrics.py"
 
 
 class LyricsToolTest(unittest.TestCase):
+    def test_failed_forced_render_preserves_existing_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cues = root / "cues.json"
+            cues.write_text(json.dumps({"duration_seconds": 0.1,
+                                        "cues": [{"start": 0, "end": 0.08,
+                                                  "original": "Signal"}]}), encoding="utf-8")
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_ffmpeg = fake_bin / "ffmpeg"
+            fake_ffmpeg.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdin.buffer.read()\nsys.exit(1)\n",
+                                   encoding="utf-8")
+            fake_ffmpeg.chmod(0o755)
+            output = root / "lyrics.mov"
+            original = b"previous valid overlay"
+            output.write_bytes(original)
+            environment = {**os.environ, "PATH": str(fake_bin) + os.pathsep + os.environ["PATH"]}
+            result = subprocess.run([sys.executable, str(SCRIPT), "render", "--cues", str(cues),
+                                     "--style", str(ROOT / "examples/style.json"),
+                                     "--output", str(output), "--force"],
+                                    env=environment, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(output.exists(), "failed rerender must keep the previous overlay")
+            self.assertEqual(output.read_bytes(), original)
+
     def test_export_and_alpha_render(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -33,6 +60,14 @@ class LyricsToolTest(unittest.TestCase):
             subprocess.run([sys.executable, str(SCRIPT), "render", "--cues", str(cues),
                             "--style", str(style), "--output", str(overlay)],
                            check=True, capture_output=True)
+            current_umask = os.umask(0)
+            os.umask(current_umask)
+            self.assertEqual(stat.S_IMODE(overlay.stat().st_mode), 0o666 & ~current_umask)
+            overlay.chmod(0o640)
+            subprocess.run([sys.executable, str(SCRIPT), "render", "--cues", str(cues),
+                            "--style", str(style), "--output", str(overlay), "--force"],
+                           check=True, capture_output=True)
+            self.assertEqual(stat.S_IMODE(overlay.stat().st_mode), 0o640)
             probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
                                     "-show_entries", "stream=nb_frames,pix_fmt", "-of", "json",
                                     str(overlay)], check=True, capture_output=True, text=True)

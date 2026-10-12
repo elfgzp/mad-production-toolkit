@@ -1,9 +1,9 @@
 {
-  "base": "renders/base.mp4",
+  "base": "../exports/base.mp4",
   "layers": [
-    {"path": "renders/lyrics-alpha.mov", "x": 0, "y": 360},
-    {"path": "renders/title-alpha.mov", "x": 0, "y": 0},
-    {"path": "renders/performer-credits.png", "x": 0, "y": 0}
+    {"path": "../exports/lyrics-alpha.mov", "x": 0, "y": 360},
+    {"path": "../exports/title-alpha.mov", "x": 0, "y": 0},
+    {"path": "../exports/performer-credits.png", "x": 0, "y": 0}
   ],
-  "audio": "renders/final-mix.flac"
+  "audio": "../exports/mix-24bit.flac"
 }

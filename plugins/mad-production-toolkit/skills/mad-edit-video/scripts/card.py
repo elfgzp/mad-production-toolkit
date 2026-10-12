@@ -6,9 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import shutil
+import stat
 import subprocess
+import tempfile
 from fractions import Fraction
 from pathlib import Path
 
@@ -212,6 +215,18 @@ def render(payload: dict, root: Path, output: Path, force: bool) -> None:
     elements = payload.get("elements")
     if not isinstance(elements, list):
         raise ValueError("elements array required")
+    for item in elements:
+        if isinstance(item, dict) and item.get("type") == "image" and isinstance(item.get("path"), str):
+            source = Path(item["path"]).expanduser()
+            source = source if source.is_absolute() else root / source
+            if source.resolve() == output.resolve():
+                raise ValueError("card output must differ from image inputs")
+    if output.exists():
+        output_mode = stat.S_IMODE(output.stat().st_mode)
+    else:
+        current_umask = os.umask(0)
+        os.umask(current_umask)
+        output_mode = 0o666 & ~current_umask
     base_background = background(size, payload)
     image = base_background.copy()
     draw_elements(image, elements, root, int(payload["min_gap"]))
@@ -219,7 +234,15 @@ def render(payload: dict, root: Path, output: Path, force: bool) -> None:
     if output.suffix.lower() == ".png":
         if any("motion" in item for item in elements):
             raise ValueError("element motion requires a video output")
-        image.save(output)
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".card-", suffix=".png",
+                                         delete=False) as tmp:
+            temporary = Path(tmp.name)
+        try:
+            image.save(temporary)
+            os.chmod(temporary, output_mode)
+            os.replace(temporary, output)
+        finally:
+            temporary.unlink(missing_ok=True)
         print(output)
         return
     if shutil.which("ffmpeg") is None:
@@ -260,35 +283,42 @@ def render(payload: dict, root: Path, output: Path, force: bool) -> None:
     else:
         command += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                     "-pix_fmt", "yuv420p"]
-    command += ["-frames:v", str(frames), str(output)]
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".card-", suffix=output.suffix,
+                                     delete=False) as tmp:
+        temporary = Path(tmp.name)
+    command += ["-frames:v", str(frames), str(temporary)]
     try:
-        assert process.stdin is not None
-        for number in range(frames):
-            time_seconds = number / fps
-            in_weight = ease(float(time_seconds / fade_in), fade_easing) if fade_in else 1.0
-            out_weight = ease(float((duration - time_seconds) / fade_out), fade_easing) if fade_out else 1.0
-            opacity = min(in_weight, out_weight)
-            frame = base_background.copy()
-            for mark, point, spec in prepared:
-                draw_motion(frame, mark, point, spec, float(time_seconds))
-            if is_alpha:
-                channel = frame.getchannel("A")
-                frame.putalpha(channel.point([round(value * opacity) for value in range(256)]))
-            elif opacity < 1:
-                fade_canvas = Image.new("RGBA", size, (*fade_color, 255))
-                frame = Image.blend(fade_canvas, frame, opacity)
-            process.stdin.write(frame.tobytes())
-        process.stdin.close()
-        assert process.stderr is not None
-        error = process.stderr.read().decode("utf-8", errors="replace")
-        if process.wait() != 0:
-            raise RuntimeError(error[-2000:])
-    except Exception:
-        process.kill()
-        process.wait()
-        output.unlink(missing_ok=True)
-        raise
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            assert process.stdin is not None
+            for number in range(frames):
+                time_seconds = number / fps
+                in_weight = ease(float(time_seconds / fade_in), fade_easing) if fade_in else 1.0
+                out_weight = ease(float((duration - time_seconds) / fade_out), fade_easing) if fade_out else 1.0
+                opacity = min(in_weight, out_weight)
+                frame = base_background.copy()
+                for mark, point, spec in prepared:
+                    draw_motion(frame, mark, point, spec, float(time_seconds))
+                if is_alpha:
+                    channel = frame.getchannel("A")
+                    frame.putalpha(channel.point([round(value * opacity) for value in range(256)]))
+                elif opacity < 1:
+                    fade_canvas = Image.new("RGBA", size, (*fade_color, 255))
+                    frame = Image.blend(fade_canvas, frame, opacity)
+                process.stdin.write(frame.tobytes())
+            process.stdin.close()
+            assert process.stderr is not None
+            error = process.stderr.read().decode("utf-8", errors="replace")
+            if process.wait() != 0:
+                raise RuntimeError(error[-2000:])
+        except Exception:
+            process.kill()
+            process.wait()
+            raise
+        os.chmod(temporary, output_mode)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
     print(f"{output}\t{frames} frames")
 
 

@@ -4,14 +4,14 @@
   "duration_seconds": 120,
   "background_color": "#101318",
   "panels": [
-    {"path": "assets/camera-a.mp4", "x": 0, "y": 0, "width": 640, "height": 360,
+    {"path": "../assets/camera-a.mp4", "x": 0, "y": 0, "width": 640, "height": 360,
      "trim_start": 0.42, "eq": {"contrast": 1.03, "brightness": 0.0, "saturation": 0.96},
      "fade_in": [0.2, 0.6], "fade_out": [118.6, 0.7]},
-    {"path": "assets/camera-b.mp4", "x": 640, "y": 0, "width": 640, "height": 360,
+    {"path": "../assets/camera-b.mp4", "x": 640, "y": 0, "width": 640, "height": 360,
      "trim_start": 1.13, "eq": {"contrast": 1.0, "brightness": 0.0, "saturation": 1.0},
      "fade_in": [0.2, 0.6], "fade_out": [118.6, 0.7]},
-    {"path": "assets/storyboard.mp4", "x": 0, "y": 360, "width": 640, "height": 360},
-    {"path": "assets/camera-c.mp4", "x": 640, "y": 360, "width": 640, "height": 360,
+    {"path": "../exports/animation-panel.mp4", "x": 0, "y": 360, "width": 640, "height": 360},
+    {"path": "../assets/camera-c.mp4", "x": 640, "y": 360, "width": 640, "height": 360,
      "trim_start": 0.71, "fade_in": [0.2, 0.6], "fade_out": [118.6, 0.7]}
   ]
 }

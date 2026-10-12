@@ -2,14 +2,12 @@
   "version": 1,
   "duration_sec": 120,
   "sample_rate": 48000,
-  "output": "../render/mix-24bit.flac",
+  "output": "../exports/mix-24bit.flac",
   "stems": [
     {
       "name": "lead guitar",
-      "path": "../media/lead.wav",
+      "path": "../aligned/lead_aligned_24bit.flac",
       "bus": "guitars",
-      "source_start_sec": 0.2,
-      "timeline_start_sec": 0,
       "placement": "mono",
       "pan": 0.45,
       "highpass_hz": 80,
@@ -28,7 +26,7 @@
     },
     {
       "name": "rhythm guitar",
-      "path": "../media/rhythm.wav",
+      "path": "../aligned/rhythm_aligned_24bit.flac",
       "bus": "guitars",
       "placement": "mono",
       "pan": -0.45,
@@ -37,7 +35,7 @@
     },
     {
       "name": "bass dry",
-      "path": "../media/bass-dry.wav",
+      "path": "../aligned/bass-dry_aligned_24bit.flac",
       "bus": "bass",
       "placement": "mono",
       "highpass_hz": 35,
@@ -45,21 +43,21 @@
     },
     {
       "name": "bass processed layer",
-      "path": "../media/bass-processed.wav",
+      "path": "../aligned/bass-processed_aligned_24bit.flac",
       "bus": "bass",
       "placement": "stereo",
       "gain_db": -10
     },
     {
       "name": "vocals",
-      "path": "../media/vocals.wav",
+      "path": "../aligned/vocals_aligned_24bit.flac",
       "bus": "vocals",
       "placement": "stereo",
       "gain_db": -1
     },
     {
       "name": "drums",
-      "path": "../media/drums.wav",
+      "path": "../aligned/drums_aligned_24bit.flac",
       "bus": "drums",
       "placement": "stereo",
       "gain_db": -2

@@ -11,7 +11,7 @@
 | Skill | 用途 |
 | --- | --- |
 | `mad-source-assets` | 记录素材来源、权利状态、媒体信息和哈希，并复制到项目目录。 |
-| `mad-plan-shots` | 根据节拍与段落规划镜头，生成精确帧数的动画画面和剪辑清单。 |
+| `mad-plan-shots` | 根据节拍规划动画或乐手机位片段，生成精确帧数的单面板视频和剪辑清单。 |
 | `mad-align-stems` | 对照参考分轨检查乐句，对确认有偏移的片段做局部时间修正。 |
 | `mad-time-lyrics` | 校对歌词覆盖范围，导出字幕，生成可配置的双语动态歌词。 |
 | `mad-mix-audio` | 对齐后并轨混音，设置自动化、均衡、声像、贝斯压缩及效果层。 |
@@ -24,18 +24,26 @@
 
 ```bash
 codex plugin marketplace add elfgzp/mad-production-toolkit
-codex plugin add mad-production-toolkit@mad-production-toolkit
+PLUGIN_ROOT="$(codex plugin add mad-production-toolkit@mad-production-toolkit --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["installedPath"])')"
+python3 -m pip install -r "$PLUGIN_ROOT/requirements.txt"
 ```
 
-此 GitHub 仓库可作为 Codex 插件市场源。进入 OpenAI 公共插件目录需要单独提交和审核。
+`PLUGIN_ROOT` 来自安装结果的 `installedPath`，指向包含依赖清单和技能脚本的插件缓存目录。安装依赖时使用的 `python3` 应与运行技能脚本时使用的解释器相同；若使用虚拟环境，请用该环境的 Python 运行脚本。直接克隆仓库运行时，也可以从插件目录安装依赖：
+
+```bash
+git clone https://github.com/elfgzp/mad-production-toolkit.git
+python3 -m pip install -r mad-production-toolkit/plugins/mad-production-toolkit/requirements.txt
+```
+
+此 GitHub 仓库可作为 Codex 插件市场源。安装后请在新 Codex 会话中使用技能。进入 OpenAI 公共插件目录需要单独提交和审核。
 
 ## 运行环境
 
 - Python 3.10 或更新版本；音频分析和文字渲染需要 `numpy`、`Pillow`。
-- `PATH` 中可用的 FFmpeg 和 FFprobe，并支持 H.264、AAC、FLAC、ProRes 编码。
+- `PATH` 中可用的 FFmpeg 和 FFprobe，并包含 `libx264`、`prores_ks`、AAC 和 FLAC 编码器。
 - 你有权为预期用途剪辑、展示和分发的本地素材。本仓库不包含实际视频、录音、歌词、翻译、Logo、字体、NAM 模型或脉冲响应文件。
 
-用 `python3 -m pip install -r requirements.txt` 安装 Python 依赖。各技能的 `SKILL.md` 说明了命令和配置格式。脚本只处理明确指定的本地路径，不调用托管媒体服务。
+用 `ffmpeg -hide_banner -encoders | grep -E 'libx264|prores_ks|[[:space:]]aac[[:space:]]|[[:space:]]flac[[:space:]]'` 检查编码器列表，确认四项均出现。各技能的 `SKILL.md` 说明了命令和配置格式。脚本只处理明确指定的本地路径，不调用托管媒体服务。
 
 ## 开发与验证
 
@@ -43,7 +51,7 @@ codex plugin add mad-production-toolkit@mad-production-toolkit
 python3 scripts/validate_all.py
 ```
 
-测试会在临时目录生成短音频和视频，无需项目素材。验证脚本检查全部技能、两份插件清单及端到端流程。发布前还应检查 Git 暂存文件，避免提交私人路径、凭据和第三方媒体。
+在仓库根目录运行验证。测试会在临时目录生成短音频和视频，无需项目素材。验证脚本检查七个技能的基本结构、两份插件清单的名称、版本与图标路径、本地文档链接，并运行各技能单测和合成端到端测试；它不执行完整的清单 JSON Schema 校验。发布前还应检查 Git 暂存文件，避免提交私人路径、凭据和第三方媒体。
 
 ## 许可与数据
 

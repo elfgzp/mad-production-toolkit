@@ -2,6 +2,14 @@
 
 `scripts/mix.py` reads UTF-8 JSON. Paths in `output` and `stems[].path` are relative to the **config file**; `--output` is relative to the current shell directory. Inputs must exist; output must end in `.flac`. Existing output requires `--force`. Use `--dry-run` to validate and print the FFmpeg command without writing audio.
 
+## Choosing the input stage
+
+For a FLAC rendered by `mad-align-stems`, use its full-song output directly and omit `source_start_sec`, `source_end_sec`, and `timeline_start_sec`. That FLAC already begins at song time 0, includes the approved source trim and any delayed entrance or padded silence, and has the requested final sample count. Applying the raw-source controls again discards or shifts approved audio. [The generic config](../examples/generic-config.json) demonstrates this path.
+
+Only for a raw recording that does not need phrase correction, set `source_start_sec` to skip lead-in and `timeline_start_sec` to choose its song entrance. [The raw-stem alternative](../examples/raw-stems-config.json) demonstrates this path. A single project can contain both kinds of input, but classify each stem explicitly before filling these fields; keep source-to-song timing evidence with the project.
+
+## Top-level fields
+
 | Field | Meaning |
 | --- | --- |
 | `version` | Required integer `1`. |
