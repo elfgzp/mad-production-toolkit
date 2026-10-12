@@ -1,0 +1,34 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mad-production-toolkit",
+  "version": "0.1.0",
+  "description": "Configurable local workflows for music video and cover MAD production.",
+  "author": {
+    "name": "elfgzp",
+    "url": "https://github.com/elfgzp"
+  },
+  "repository": "https://github.com/elfgzp/mad-production-toolkit",
+  "license": "MIT",
+  "keywords": ["video-editing", "audio-mixing", "subtitles", "music-video", "mad"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "MAD Production Toolkit",
+        "shortDescription": "Edit music cover videos",
+        "longDescription": "Plan authorized media, align recorded performances, time lyrics, mix audio, composite video, and verify deliverables with reusable local tools. Visual and audio settings come from each project.",
+        "developerName": "elfgzp",
+        "category": "Productivity",
+        "capabilities": ["Edit local video", "Mix local audio", "Time lyrics"],
+        "websiteURL": "https://github.com/elfgzp/mad-production-toolkit",
+        "privacyPolicyURL": "https://github.com/elfgzp/mad-production-toolkit/blob/main/PRIVACY.md",
+        "defaultPrompt": [
+          "Plan a cover music video from my authorized source media.",
+          "Align and mix my recorded stems for a video.",
+          "Time bilingual lyrics and render a configurable overlay."
+        ],
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Multicamera base and overlay config
+
+`base.json` requires `canvas: [width,height]`, `fps` as a fraction string, `duration_seconds`, `background_color: "#RRGGBB"`, and 1–8 `panels`. Each panel has local `path`, `x`, `y`, `width`, `height`, and optional `trim_start`, `start_seconds`, `end_seconds`, `crop: [width,height,x,y]`, `eq` (`contrast`, `brightness`, `saturation`), `colorbalance` (`rm`, `gm`, `bm`), `fade_in: [start,duration]`, and `fade_out: [start,duration]`. Paths are resolved against the config file. Source files need to cover only the panel's visible interval after trimming. Set matching start/end and fades across related performer panels when desired. The output is a silent H.264 textless master at the exact requested frame count.
+
+`layers.json` requires `base` path and an array of transparent `layers`, each with `path`, `x`, `y`. Optional `width` and `height` scale a layer; `opacity` sets 0–1 alpha; `start_seconds` and `end_seconds` bound its appearance. A ProRes 4444 MOV can also end at its own last frame. A PNG/JPEG layer loops until its configured end or the base end. Optional `audio` is a local mix; `--audio` on the CLI overrides it. For a 2×2 1280×720 grid, a lyric MOV rendered at 640×360 for the lower-left panel belongs at `x=0, y=360`. This is one example layout, not a fixed rule.
+
+Build a textless master after camera sync and color are approved. The sidecar `<output>.cache.json` records hashes of inputs and config plus the FFmpeg version. If an output exists with changed dependencies, `base` refuses to replace it until `--force` is supplied. Keep visual layers independent so lyric, title, and audio revisions do not require decoding and grading every camera again.
+
+Test synchronization at the beginning, around each scene entrance, and near the final fade. Inspect a contact sheet for color consistency and legible labels. Do not infer video sync from an audio trim number without evidence from that camera.

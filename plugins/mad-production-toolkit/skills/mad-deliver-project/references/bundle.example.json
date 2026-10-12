@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "source": "fixtures/final-video.mp4",
+      "destination": "04_exports/final-video.mp4",
+      "rights_status": "owned",
+      "permission_ref": "synthetic-demo"
+    },
+    {
+      "source": "fixtures/mix.flac",
+      "destination": "04_exports/mix.flac",
+      "rights_status": "owned",
+      "permission_ref": "synthetic-demo"
+    }
+  ]
+}

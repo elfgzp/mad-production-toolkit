@@ -1,0 +1,25 @@
+{
+  "canvas": [1280, 720],
+  "fps": "30000/1001",
+  "duration_seconds": 7.5,
+  "background": "transparent",
+  "min_gap": 28,
+  "fade_in_seconds": 0.4,
+  "fade_out_seconds": 0.6,
+  "fade_easing": "smoothstep",
+  "elements": [
+    {"type": "text", "text": "EXAMPLE BAND", "x": 640, "y": 180,
+     "size": 52, "color": "#e8e5f5",
+     "motion": {"start_seconds": 0.2, "end_seconds": 7.2,
+                "fade_in_seconds": 0.5, "fade_out_seconds": 0.5,
+                "offset_from": [0, 18], "offset_to": [0, 0],
+                "scale_from": 0.96, "scale_to": 1.0,
+                "opacity": 1.0, "easing": "smoothstep"}},
+    {"type": "text", "text": "Example Tune", "x": 640, "y": 350,
+     "size": 47, "color": "#fff9f6"},
+    {"type": "text", "text": "An Example Translation", "x": 640, "y": 435,
+     "size": 31, "color": "#f4dce8"},
+    {"type": "text", "text": "ORIGINAL: EXAMPLE BAND | BAND COVER",
+     "x": 640, "y": 535, "size": 23, "color": "#f2c2d3"}
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "fps": "30/1",
+  "canvas": [640, 360],
+  "margin_x": 24,
+  "margin_y": 20,
+  "inset": 18,
+  "anchor": "bottom-left",
+  "max_lines": 2,
+  "line_gap": 6,
+  "original_font": null,
+  "translation_font": null,
+  "original_size": 29,
+  "translation_size": 23,
+  "plate_color": "#080b13",
+  "plate_opacity": 160,
+  "plate_radius": 9,
+  "original_color": "#fff9f6",
+  "highlight_color": "#ff4162",
+  "translation_color": "#ffdfe8",
+  "stroke_color": "#080b13",
+  "stroke_width": 1,
+  "highlight": {
+    "mode": "wipe",
+    "direction": "left-to-right",
+    "duration_seconds": 0.8,
+    "easing": "smoothstep"
+  },
+  "entrance": {
+    "mode": "fade-slide",
+    "direction": "up",
+    "duration_seconds": 0.18,
+    "easing": "ease-out",
+    "distance_pixels": 7
+  },
+  "exit": {
+    "mode": "fade",
+    "direction": "down",
+    "duration_seconds": 0.16,
+    "easing": "linear",
+    "distance_pixels": 0
+  }
+}

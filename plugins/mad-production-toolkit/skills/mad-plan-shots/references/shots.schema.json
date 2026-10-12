@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mad-plan-shots/shots.schema.json",
+  "title": "MAD frame-accurate shot plan",
+  "type": "object",
+  "required": ["schema_version", "fps", "width", "height", "default_style", "shots"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 2},
+    "fps": {"type": "string", "pattern": "^[1-9][0-9]*/[1-9][0-9]*$"},
+    "width": {"type": "integer", "minimum": 2, "multipleOf": 2},
+    "height": {"type": "integer", "minimum": 2, "multipleOf": 2},
+    "default_style": {"$ref": "#/$defs/style_full"},
+    "shots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "source_id", "source_in_seconds", "duration_frames", "section", "beat_hint"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+          "source_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+          "source_in_seconds": {"type": "number", "minimum": 0},
+          "duration_frames": {"type": "integer", "minimum": 1},
+          "section": {"type": "string", "minLength": 1},
+          "beat_hint": {"type": "string", "minLength": 1},
+          "style": {"$ref": "#/$defs/style_override"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hex_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+    "anchor": {"type": "number", "minimum": 0, "maximum": 1},
+    "composition": {
+      "oneOf": [
+        {
+          "type": "object", "required": ["mode", "anchor_x", "anchor_y"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"const": "cover"},
+            "anchor_x": {"$ref": "#/$defs/anchor"},
+            "anchor_y": {"$ref": "#/$defs/anchor"}
+          }
+        },
+        {
+          "type": "object", "required": ["mode", "anchor_x", "anchor_y", "background"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"const": "contain"},
+            "anchor_x": {"$ref": "#/$defs/anchor"},
+            "anchor_y": {"$ref": "#/$defs/anchor"},
+            "background": {"$ref": "#/$defs/hex_color"}
+          }
+        },
+        {
+          "type": "object", "required": ["mode"], "additionalProperties": false,
+          "properties": {"mode": {"const": "stretch"}}
+        }
+      ]
+    },
+    "color": {
+      "oneOf": [
+        {
+          "type": "object", "required": ["mode"], "additionalProperties": false,
+          "properties": {"mode": {"const": "none"}}
+        },
+        {
+          "type": "object", "required": ["mode"], "additionalProperties": false,
+          "properties": {
+            "mode": {"const": "eq"},
+            "brightness": {"type": "number", "minimum": -1, "maximum": 1},
+            "contrast": {"type": "number", "minimum": 0, "maximum": 3},
+            "saturation": {"type": "number", "minimum": 0, "maximum": 3},
+            "gamma": {"type": "number", "minimum": 0.1, "maximum": 10}
+          }
+        }
+      ]
+    },
+    "transition_edge": {
+      "oneOf": [
+        {
+          "type": "object", "required": ["type"], "additionalProperties": false,
+          "properties": {"type": {"const": "cut"}}
+        },
+        {
+          "type": "object", "required": ["type", "frames", "color"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {"const": "fade"},
+            "frames": {"type": "integer", "minimum": 1},
+            "color": {"$ref": "#/$defs/hex_color"}
+          }
+        }
+      ]
+    },
+    "transition": {
+      "type": "object", "required": ["in", "out"], "additionalProperties": false,
+      "properties": {
+        "in": {"$ref": "#/$defs/transition_edge"},
+        "out": {"$ref": "#/$defs/transition_edge"}
+      }
+    },
+    "style_full": {
+      "type": "object", "required": ["composition", "color", "transition"],
+      "additionalProperties": false,
+      "properties": {
+        "composition": {"$ref": "#/$defs/composition"},
+        "color": {"$ref": "#/$defs/color"},
+        "transition": {"$ref": "#/$defs/transition"}
+      }
+    },
+    "style_override": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "composition": {"$ref": "#/$defs/composition"},
+        "color": {"$ref": "#/$defs/color"},
+        "transition": {"$ref": "#/$defs/transition"}
+      }
+    }
+  }
+}

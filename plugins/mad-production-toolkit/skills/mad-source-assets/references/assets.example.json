@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "id": "example-camera-a",
+      "path": "fixtures/camera-a.mp4",
+      "media_type": "video",
+      "origin": {"type": "label", "value": "synthetic_fixture"},
+      "creator": "Example Studio",
+      "rights_status": "owned"
+    },
+    {
+      "id": "example-animation",
+      "path": "fixtures/animation.mp4",
+      "media_type": "video",
+      "origin": {"type": "public_url", "value": "https://example.org/animation"},
+      "creator": "Example Creator",
+      "rights_status": "review-needed"
+    }
+  ]
+}

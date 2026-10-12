@@ -1,0 +1,4 @@
+interface:
+  display_name: "MAD Audio Mix"
+  short_description: "Mix aligned stems with repeatable controls"
+  default_prompt: "Use $mad-mix-audio to mix these aligned performance stems into a 24-bit FLAC."

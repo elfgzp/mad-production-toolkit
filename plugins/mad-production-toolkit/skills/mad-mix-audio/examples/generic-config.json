@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "duration_sec": 120,
+  "sample_rate": 48000,
+  "output": "../render/mix-24bit.flac",
+  "stems": [
+    {
+      "name": "lead guitar",
+      "path": "../media/lead.wav",
+      "bus": "guitars",
+      "source_start_sec": 0.2,
+      "timeline_start_sec": 0,
+      "placement": "mono",
+      "pan": 0.45,
+      "highpass_hz": 80,
+      "eq": [
+        { "type": "high_shelf", "frequency_hz": 6000, "width": 0.8, "gain_db": -2 }
+      ],
+      "gain_db": -1,
+      "reverb": { "delay_ms": [47, 83], "decay": [0.25, 0.12], "wet": 0.15 },
+      "automation": [
+        { "time_sec": 0, "gain_db": 0 },
+        { "time_sec": 39.7, "gain_db": 0 },
+        { "time_sec": 40, "gain_db": 1.5 },
+        { "time_sec": 64, "gain_db": 1.5 },
+        { "time_sec": 64.3, "gain_db": 0 }
+      ]
+    },
+    {
+      "name": "rhythm guitar",
+      "path": "../media/rhythm.wav",
+      "bus": "guitars",
+      "placement": "mono",
+      "pan": -0.45,
+      "highpass_hz": 90,
+      "gain_db": -3
+    },
+    {
+      "name": "bass dry",
+      "path": "../media/bass-dry.wav",
+      "bus": "bass",
+      "placement": "mono",
+      "highpass_hz": 35,
+      "gain_db": -1
+    },
+    {
+      "name": "bass processed layer",
+      "path": "../media/bass-processed.wav",
+      "bus": "bass",
+      "placement": "stereo",
+      "gain_db": -10
+    },
+    {
+      "name": "vocals",
+      "path": "../media/vocals.wav",
+      "bus": "vocals",
+      "placement": "stereo",
+      "gain_db": -1
+    },
+    {
+      "name": "drums",
+      "path": "../media/drums.wav",
+      "bus": "drums",
+      "placement": "stereo",
+      "gain_db": -2
+    }
+  ],
+  "buses": {
+    "bass": {
+      "compressor": {
+        "threshold_db": -18,
+        "ratio": 1.8,
+        "attack_ms": 30,
+        "release_ms": 180,
+        "detection": "rms",
+        "makeup_db": 1
+      },
+      "automation": [
+        { "time_sec": 0, "gain_db": 0 },
+        { "time_sec": 80, "gain_db": 0 },
+        { "time_sec": 80.3, "gain_db": 0.8 },
+        { "time_sec": 96, "gain_db": 0.8 },
+        { "time_sec": 96.3, "gain_db": 0 }
+      ]
+    }
+  },
+  "master": {
+    "gain_db": -7,
+    "limiter": { "limit_db": -1 }
+  }
+}

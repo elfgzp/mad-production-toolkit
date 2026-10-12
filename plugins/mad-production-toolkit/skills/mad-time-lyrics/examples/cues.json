@@ -1,0 +1,12 @@
+{
+  "duration_seconds": 4.0,
+  "title": {
+    "original": "Example Tune",
+    "translation": "示例曲",
+    "artist": "Example Band"
+  },
+  "cues": [
+    {"start": 0.5, "end": 1.7, "original": "A bright road", "translation": "明亮的路"},
+    {"start": 2.0, "end": 3.4, "original": "We move on", "translation": "继续前行"}
+  ]
+}

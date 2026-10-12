@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "fps": "30000/1001",
+  "width": 640,
+  "height": 360,
+  "default_style": {
+    "composition": {
+      "mode": "contain",
+      "anchor_x": 0.5,
+      "anchor_y": 0.5,
+      "background": "#202028"
+    },
+    "color": {"mode": "none"},
+    "transition": {
+      "in": {"type": "cut"},
+      "out": {"type": "cut"}
+    }
+  },
+  "shots": [
+    {
+      "id": "opening-01",
+      "source_id": "example-animation",
+      "source_in_seconds": 1.0,
+      "duration_frames": 120,
+      "section": "opening",
+      "beat_hint": "bar 1, beat 1",
+      "style": {
+        "transition": {
+          "in": {"type": "fade", "frames": 10, "color": "#202028"},
+          "out": {"type": "cut"}
+        }
+      }
+    },
+    {
+      "id": "opening-02",
+      "source_id": "example-camera-a",
+      "source_in_seconds": 3.25,
+      "duration_frames": 120,
+      "section": "opening",
+      "beat_hint": "bar 5, beat 1",
+      "style": {
+        "composition": {"mode": "cover", "anchor_x": 0.35, "anchor_y": 0.45},
+        "color": {
+          "mode": "eq", "brightness": 0.01, "contrast": 1.04,
+          "saturation": 0.9, "gamma": 1.0
+        }
+      }
+    }
+  ]
+}
